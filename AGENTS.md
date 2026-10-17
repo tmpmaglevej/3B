@@ -3,6 +3,13 @@
 Gælder hele repositoryet. Læs denne fil før ændringer. Reglerne styrer arbejdet;
 de erstatter ikke adgangskontrol, tests eller menneskelig kodegennemgang.
 
+**Dokumenthierarki:** `specs.md` er den styrende kilde til produktkrav,
+teknologivalg og vedtagne/fravalgte funktioner. `AGENTS.md` styrer
+arbejdsmetode, kodekvalitet, sikkerhed og samarbejde; `docs.md` beskriver
+den faktisk implementerede arkitektur. Hvis AGENTS og specs er uenige om
+projektets indhold, følg `specs.md` og gør konflikten tydelig. Omskriv
+ikke specs for at tilpasse den til AGENTS. Gæt ikke på åbne beslutninger.
+
 ## Projekt og afgrænsning
 
 Vi bygger en studieprototype til DIS på HA(it.), CBS. En hotelgæst skal kunne
@@ -13,13 +20,21 @@ ikke er. Personalet opdaterer status. Systemet sender besked, når det er klart.
 - Første version: ét hotel, fiktive data og allerede tildelte værelser.
 - Status "klar" betyder, at hotellet har frigivet værelset til gæsten.
 - En tilmelding vedrører en booking/et ophold, ikke værelset for evigt.
-- Mail er foreslået; database, login og endelig beskedkanal skal afklares
-  i specs.md før implementering af de pågældende dele.
+- Gæster identificerer bookinger med bookingreference og e-mail, uden login.
+- Personalesiden har intet applikationslogin i første version. Ved offentlig
+  deployment skal både side og personale-API netværksbegrænses som i specs.md.
+- Azure SQL Database (`roomReady` som fælles udviklingsdatabase) er valgt.
+  Første version har tre tabeller: `rooms`, `bookings` og
+  `notification_subscriptions`; ingen selvstændig `email_jobs`-tabel.
+- E-mail via Nodemailer er valgt. Mailudbyder, transport og regler for retries
+  er fortsat åbne beslutninger i specs.md.
+- Udvikling sker lokalt med GitHub; den færdige app deployes til den
+  eksisterende DigitalOcean Droplet med adskilt produktionsdatabase.
 - Ingen antagelse om integration med Opally eller et rigtigt hotelsystem.
 
 ## Før du ændrer kode
 
-1. Læs relevante filer, specs.md, package.json og git status, hvis de findes.
+1. Læs specs.md, relevante filer, package.json og git status, hvis de findes.
 2. Genbrug eksisterende løsninger, og bevar gruppens igangværende ændringer.
 3. Beskriv kort den konkrete opgave og hvilke filer du forventer at ændre.
 4. Udfør den aftalte opgave. Små, reversible implementeringsvalg afgør du selv.
@@ -51,7 +66,7 @@ ikke er. Personalet opdaterer status. Systemet sender besked, når det er klart.
 
 ## Frontend
 
-- Separate HTML-sider til separate arbejdsopgaver, fx gæst, personale og login.
+- Separate HTML-sider til gæste- og personalearbejdsopgaver. Opret ikke login-UI.
 - Brug rigtige form-elementer, labels, submit-events og HTML-validering.
 - Brug fetch; tilføj ikke et HTTP-bibliotek til simple API-kald.
 - Hver side har sin egen indgangsfil. Del kun reelt fælles kode.
@@ -72,11 +87,17 @@ ikke er. Personalet opdaterer status. Systemet sender besked, når det er klart.
 ## Backend, data og sikkerhed
 
 - Serveren validerer input, tilladte statusværdier og adgang til ressourcer.
-- Personaleroutes kræver personaleadgang. Gæster må kun tilgå egen booking.
+- Gæster må kun tilgå bookinger, hvor bookingreference og e-mail matcher;
+  begræns gentagne opslag. Dette er forenklet adgang til fiktive demodata,
+  ikke stærk autentifikation.
+- Der implementeres intet personalelogin. Ved offentlig deployment skal
+  personalesiden og alle tilhørende API-endpoints have netværksbaseret
+  adgangsbegrænsning som angivet i specs.md; eksponer dem ikke frit.
   En hemmelig sideadresse, skjult knap eller localStorage-flag er ikke adgangskontrol.
-- Brug en etableret løsning til sessions/password-hashing, når login vælges.
-  Implementer ikke egen kryptografi. Gennemgå CSRF ved cookie-baseret login.
-- SQL skal bruge parametre. Brug databasebegrænsninger til fx unikke tilmeldinger.
+- Implementer ikke login, sessionsystem eller egen kryptografi uden en ny,
+  vedtaget beslutning i specs.md.
+- Brug Azure SQL Database med parameteriseret SQL og relevante
+  databasebegrænsninger, herunder højst én tilmelding pr. booking.
 - Gem varige data i databasen. Proceshukommelse må ikke være eneste lager for
   bookinger, tilmeldinger eller beskeder, som skal overleve genstart.
 - Genbrug databaseforbindelsespulje og Nodemailer-transporter.
@@ -104,8 +125,9 @@ ikke er. Personalet opdaterer status. Systemet sender besked, når det er klart.
 ## Afhængigheder og værktøjer
 
 - Brug eksisterende afhængigheder og indbyggede funktioner først.
-- Express, Nodemailer og relevant databasedriver er den forventede lille kerne;
-  installer kun det, vi faktisk bruger. Databasevalget må ikke gættes.
+- Express og Nodemailer er valgt; `mssql` er forventet driver til Azure SQL.
+  Installer kun afhængigheder, vi faktisk bruger. Væsentlige nye
+  runtime-afhængigheder og ændringer i teknologivalg skal aftales.
 - Genbrug aftalt Prettier/ESLint-opsætning. Opret ikke omfattende regelpakker.
 - Commit lockfilen. Rediger den ikke manuelt.
 - Skriv de faktiske install-, start- og testkommandoer i README.
