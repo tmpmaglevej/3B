@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hotel Room Status</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/script.js"></script>
+  </head>
+  <body>
+    <main class="card">
+      <p class="eyebrow">Hotel Room Status · Studieprototype</p>
+      <h1>Er dit værelse klar?</h1>
+      <p>Find status med din bookingreference og den e-mailadresse, der hører til bookingen.</p>
+      <p class="notice" id="prototype-notice">
+        Studieprototype: Brug kun fiktive bookingoplysninger. Bookingopslag kræver,
+        at udviklingsdatabasen er sat op. I udvikling går mails til projektets faste testmodtager.
+      </p>
+      <form id="booking-form" aria-describedby="prototype-notice">
+        <label for="booking-reference">Bookingreference</label>
+        <input id="booking-reference" type="text" required maxlength="40" autocomplete="off" />
+
+        <label for="email">E-mailadresse</label>
+        <input id="email" type="email" required maxlength="254" autocomplete="off" />
+
+        <button id="status-button" type="submit" disabled>Se status</button>
+      </form>
+      <p id="booking-message" role="status" aria-live="polite"></p>
+      <form id="subscription-form" hidden>
+        <button id="subscribe-button" type="submit">Send mig besked</button>
+      </form>
+      <p id="subscription-message" role="status" aria-live="polite"></p>
+      <noscript>JavaScript skal være aktiveret for at bruge formularen.</noscript>
+    </main>
+  </body>
+</html>

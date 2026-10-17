@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Personale · Hotel Room Status</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/staff.js"></script>
+  </head>
+  <body>
+    <main class="card staff-card">
+      <p class="eyebrow">Hotel Room Status · Personale</p>
+      <h1>Dagsoversigt</h1>
+      <p>Viser ophold, hvor ankomst er senest i dag og afrejse efter i dag, efter dansk dato.
+        Brug Klar eller Ikke klar til at ændre bookingens status.</p>
+      <p class="notice">
+        Lokal studieprototype med fiktive data. Ingen personalelogin.
+      </p>
+      <button id="refresh-button" type="button" disabled>Opdatér oversigt</button>
+      <p id="staff-message" role="status" aria-live="polite"></p>
+      <div class="table-container" id="staff-table-container" aria-busy="true">
+        <table>
+          <caption>Værelser og bookingstatus</caption>
+          <thead>
+            <tr>
+              <th scope="col">Værelse</th>
+              <th scope="col">Status</th>
+              <th scope="col">Dagens gæst (bookingreference)</th>
+              <th scope="col">Handling</th>
+            </tr>
+          </thead>
+          <tbody id="rooms-body"></tbody>
+        </table>
+      </div>
+      <noscript>JavaScript skal være aktiveret for at bruge personaleoversigten.</noscript>
+    </main>
+  </body>
+</html>
