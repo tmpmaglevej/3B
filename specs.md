@@ -1,7 +1,7 @@
 # DIS Eksamensprojekt – Kravspecifikation
 
 **Projekt:** Hotel Room Status  
-**Status:** Udkast – version 1.4  
+**Status:** Udkast – version 1.5  
 **Kontekst:** Computernetværk og Distribuerede Systemer, CBS, efterår 2026
 
 ## 1. Formål
@@ -27,9 +27,9 @@ Uden for første version: betaling, køb/bestilling af tidlig check-in, AI-chatb
 
 ### 3.1 Find booking
 
-Gæsten kan indtaste ordrenummer og bookingens e-mailadresse og trykke på "Se status". Backend validerer input og kontrollerer adgangen til bookingen. Fejlmeddelelser må ikke afsløre, om et bestemt ordrenummer eller en bestemt e-mailadresse findes.
+Gæsten indtaster **bookingreference** og den e-mailadresse, der er tilknyttet bookingen, og trykker på "Se status". Backend validerer begge oplysninger og slår bookingen op i Azure SQL. Ved match vises status for netop den booking; ellers vises en neutral fejlmeddelelse, som ikke afslører, hvilken oplysning der var forkert.
 
-**Uafklaret:** Om ordrenummer og e-mail er tilstrækkelig adgangskontrol, eller om yderligere verifikation er nødvendig.
+**Valgt:** Bookingreference + e-mail er adgangsmetoden i første version. Der implementeres ikke gæstelogin eller engangskoder. Bookingreferencer skal være svære at gætte, og gentagne opslag skal begrænses. Dette er en forenklet adgangsmetode til fiktive demodata, ikke stærk autentifikation.
 
 ### 3.2 Vis værelsesstatus
 
@@ -60,7 +60,7 @@ Systemet skal:
 
 Personaleoversigten består af fire kolonner:
 
-| Værelse | Status | Næste gæst (ordrenummer) | Handling |
+| Værelse | Status | Næste gæst (bookingreference) | Handling |
 |---|---|---|---|
 | 301 | Klar | OP123456 | Ikke klar |
 | 302 | Ikke klar | OP123457 | Klar |
@@ -68,11 +68,13 @@ Personaleoversigten består af fire kolonner:
 
 Eksemplerne er fiktive. Status vises med tekst og farve. Status redigeres direkte i tabellen uden særskilt redigeringsside eller dropdown.
 
+**Valgt:** Der udvikles **intet personalelogin** i første version. Personalesiden er en afgrænset studie- og demonstrationsfunktion med fiktive data. Ved offentlig deployment må personalesiden og dens API-endpoints dog ikke være frit tilgængelige; de adgangsbegrænses på Nginx-/netværksniveau uden at indføre et login i applikationen.
+
 ### 4.2 Statusændring
 
 - Ved "Ikke klar" hedder handlingsknappen "Klar"; ved "Klar" hedder den "Ikke klar".
 - Frontend sender den **ønskede** status til backend, ikke en blind toggle-operation.
-- Backend kræver personaleadgang, validerer ændringen og gemmer den i databasen.
+- Backend validerer ændringen og gemmer den i databasen. Adgang til status-API'et begrænses ved offentlig deployment på Nginx-/netværksniveau; der implementeres ikke personalelogin.
 - UI opdateres først, når serveren har bekræftet ændringen; ved fejl vises fejlbesked.
 - Samtidige opdateringer fra flere medarbejdere må ikke lydløst overskrive nyere ændringer.
 
@@ -87,7 +89,7 @@ Første version har **tre logiske tabeller**:
 | Tabel | Ansvar | Væsentlige felter |
 |---|---|---|
 | `rooms` | Hotellets værelser | `id`, `room_number` |
-| `bookings` | Ophold, gæsteidentifikation og værelsesstatus | `id`, `order_number`, `email`, `room_id`, opholdsdatoer, `status` |
+| `bookings` | Ophold, gæsteidentifikation og værelsesstatus | `id`, `booking_reference`, `email`, `room_id`, opholdsdatoer, `status` |
 | `notification_subscriptions` | Tilmelding **og** status for den tilhørende e-mail | `id`, `booking_id`, `subscribed_at`, `email_status`, `email_attempts`, `email_accepted_at`, evt. fejloplysning |
 
 Der oprettes **ingen separat `email_jobs`-tabel i første version**. En række i `notification_subscriptions` repræsenterer både tilmelding og det eventuelle afsendelsesforløb.
@@ -97,7 +99,7 @@ Der oprettes **ingen separat `email_jobs`-tabel i første version**. En række i
 - Ét værelse kan have flere bookinger over tid; én booking refererer til ét tildelt værelse.
 - Status gælder **bookingen** og ikke værelset for evigt.
 - Højst én e-mailtilmelding pr. booking håndhæves med en unik databasebegrænsning.
-- Ordrenumre skal være entydige i den valgte datamodel.
+- Bookingreferencer skal være entydige i den valgte datamodel.
 - Fremmednøgler, relevante tjekbegrænsninger og parameteriseret SQL anvendes.
 - Den endelige SQL-struktur, datatyper, opholdsafgrænsning og eventuelle versionsfelter fastlægges ved implementering.
 
@@ -166,12 +168,15 @@ Den deployede Express-server kommunikerer via en krypteret og certifikatvalidere
 
 Deployment skal være gentageligt, og opdateringer af kode må ikke automatisk nulstille produktionsdata. Backend kører som administreret proces, og konfiguration håndteres via miljøvariabler.
 
+Før personalesiden og dens ændrings-API gøres tilgængelige på en offentligt eksponeret Droplet, skal Nginx/netværkskonfigurationen begrænse adgangen til de aftalte udvikler-/demonstrationsadresser. Dette er adgangsbegrænsning uden personalelogin og ikke en sikkerhedsløsning for et rigtigt hotel.
+
 ### 7.4 Netværk og adgang
 
 - Klientens browser → HTTPS → Nginx → Express → Azure SQL over en krypteret netværksforbindelse.
 - Databaseforbindelser skal genbruges og håndtere timeout, forbindelsesbrud og afvisninger.
 - SQL-serverens firewall må kun give adgang fra nødvendige klient-IP'er (udviklingsmaskiner og senere Dropletten).
 - Der må ikke anvendes åbne firewallregler eller administratorlogin som varig applikationskonfiguration.
+- Personalesiden og personale-API'et skal ved offentlig deployment have netværksbaseret adgangsbegrænsning; en ukendt URL alene beskytter dem ikke.
 - Der skal vælges passende backup- og gendannelsesprocedure.
 
 ## 8. API
@@ -182,15 +187,16 @@ Backend skal kunne håndtere:
 |---|---|
 | Bookingopslag | Kontrollere adgang og hente status for egen booking |
 | E-mailtilmelding | Registrere tilmelding til en booking |
-| Værelsesoversigt | Vise relevante data til personale |
-| Statusændring | Ændre bookingens status med autorisation og dataintegritet |
+| Værelsesoversigt | Vise relevante data til personalesiden (uden login; netværksbegrænset ved deployment) |
+| Statusændring | Ændre bookingens status med validering og dataintegritet; adgang begrænses ved deployment |
 
 Endpoint-navne, HTTP-metoder, JSON-felter og statuskoder fastlægges under implementering. Brug relevante HTTP-statuskoder og et enkelt, konsekvent fejlformat.
 
 ## 9. Sikkerhed
 
 - Input valideres på serveren; SQL-forespørgsler parameteriseres.
-- En gæst må kun tilgå egen booking; personalehandlinger kræver reel autentifikation og autorisation.
+- Gæsten får adgang til bookingstatus gennem bookingreference og matchende e-mail. Dette er en bevidst forenklet løsning til fiktive data; opslag skal ratebegrænses.
+- Der er intet personalelogin. Personaleside og personale-API sikres ikke gennem brugerautentifikation, men må ved offentlig deployment kun kunne tilgås fra tilladte netværksadresser via Nginx. Denne begrænsning skal beskrives åbent til eksamen; løsningen er ikke egnet til ægte hoteldata uden stærkere adgangskontrol.
 - Bookingopslag skal beskyttes mod automatiserede gæt og utilsigtet informationslæk.
 - SQL-forbindelser skal bruge kryptering og certifikatvalidering.
 - Databasekonti gives kun nødvendige rettigheder; firewall begrænses.
@@ -198,7 +204,7 @@ Endpoint-navne, HTTP-metoder, JSON-felter og statuskoder fastlægges under imple
 - Den offentlige app bruger HTTPS; adgangskontrol må ikke baseres på skjulte knapper eller URL'er.
 - Udvikling og produktion skal have adskilte databaser.
 
-**Uafklaret:** Endelig adgangsmetode for gæster, personalelogin og databaseautentifikation.
+**Uafklaret:** Databaseautentifikation. Gæstens bookingopslag og fravalg af personalelogin er besluttet.
 
 ## 10. Fejlhåndtering og tests
 
@@ -230,7 +236,7 @@ Faglige påstande om performance, pålidelighed eller brugerfordele kræver egne
 Første version kan demonstreres, når:
 - Gæsten kan identificere sin booking og se korrekt status.
 - Gæsten kan tilmelde sig e-mail ved "Ikke klar" uden dubletter.
-- Autoriseret personale kan se værelsesoversigten og ændre status fra tabellen.
+- Personalesiden kan vise værelsesoversigten og ændre status uden applikationslogin; ved offentlig deployment er siden og personale-API'et netværksbegrænsede.
 - Statusændringer gemmes i Azure SQL og afspejles i gæste-UI.
 - En tilmelding kan udløse et e-mailforsøg gennem Nodemailer.
 - E-mailstatus og relevante fejl gemmes i `notification_subscriptions`.
@@ -253,8 +259,8 @@ Alle kriterier skal kontrolleres ved faktiske tests, før de markeres som opfyld
 | Databasebibliotek | Forventet: `mssql` |
 | Azure SQL-produktionsdatabase og pris | Skal verificeres/oprettes |
 | Mailudbyder og transportmetode | Ikke valgt |
-| Gæstens endelige adgangsmetode | Ikke valgt |
-| Personaleautentifikation | Ikke valgt |
+| Gæstens adgangsmetode | **Valgt: Bookingreference + e-mail (uden gæstelogin)** |
+| Personalelogin | **Fravalgt i første version; netværksbaseret adgangsbegrænsning ved offentlig deployment** |
 | Databaseautentifikation | Ikke valgt |
 | Tilbageførsel af "Klar" og evt. ny mail | Ikke valgt |
 | Regler for genforsøg og uklare mailudfald | Ikke valgt |
