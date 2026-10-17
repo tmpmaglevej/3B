@@ -37,7 +37,7 @@ Status tilhører den konkrete booking/ophold og kan være:
 - **Ikke klar:** Værelset er endnu ikke frigivet til denne gæst.
 - **Klar:** Hotelpersonalet har frigivet værelset til denne gæst.
 
-Vis "Klar" tydeligt, eksempelvis grønt, og oplys at gæsten kan henvende sig i receptionen efter nøglen. Ved "Ikke klar" vises en tydelig, eksempelvis orange, status og mulighed for e-mailtilmelding.
+Vis "Klar" tydeligt, eksempelvis grønt, og oplys at gæsten kan henvende sig i receptionen efter nøglen. Ved "Ikke klar" vises en tydelig, eksempelvis rødt, status og mulighed for e-mailtilmelding.
 
 Netværksfejl og databasefejl må ikke fortolkes som "Ikke klar"; de skal vises som fejl.
 
@@ -52,19 +52,25 @@ Systemet skal:
 - Håndtere konkurrerende tilmelding og statusændring. Gæsten må ikke efterlades som ventende, hvis bookingen allerede er blevet "Klar".
 - Ikke vise en fejl som en vellykket tilmelding.
 
-**Foreløbigt forslag:** Brug e-mailadressen fra den verificerede booking; gæsten skal ikke indtaste en ny modtageradresse.
+**Valgt:** Tilmeldingen bruger e-mailadressen fra den verificerede booking; gæsten indtaster ikke en anden modtager. I udvikling overstyres den faktiske modtager med en fast testindbakke fra miljøvariabler, så der ikke sendes til virkelige gæster.
 
 ## 4. Personale-UI
 
 ### 4.1 Værelsesoversigt
 
+Personaleoversigten er en **dagsoversigt** efter dansk dato (`Europe/Copenhagen`).
+Kun ophold med ankomst senest i dag og afrejse efter i dag vises. Bookinger
+med ankomst i morgen vises ikke. Værelser uden et ophold i dag vises uden
+bookingstatus og handling. Hvis flere ophold overlapper på samme værelse,
+vises en fejl frem for at vælge en gæst vilkårligt.
+
 Personaleoversigten består af fire kolonner:
 
-| Værelse | Status | Næste gæst (bookingreference) | Handling |
+| Værelse | Status | Dagens gæst (bookingreference) | Handling |
 |---|---|---|---|
-| 301 | Klar | OP123456 | Ikke klar |
-| 302 | Ikke klar | OP123457 | Klar |
-| 303 | Ikke klar | OP123458 | Klar |
+| 301 | Klar | OP123456 | Klar / Ikke klar |
+| 302 | Ikke klar | OP123457 | Klar / Ikke klar |
+| 303 | Ikke klar | OP123458 | Klar / Ikke klar |
 
 Eksemplerne er fiktive. Status vises med tekst og farve. Status redigeres direkte i tabellen uden særskilt redigeringsside eller dropdown.
 
@@ -72,13 +78,13 @@ Eksemplerne er fiktive. Status vises med tekst og farve. Status redigeres direkt
 
 ### 4.2 Statusændring
 
-- Ved "Ikke klar" hedder handlingsknappen "Klar"; ved "Klar" hedder den "Ikke klar".
+- Begge knapper vises: grøn "Klar" og rød "Ikke klar". Knappen for den aktuelle status er deaktiveret. Status "Ikke klar" vises også rødt.
 - Frontend sender den **ønskede** status til backend, ikke en blind toggle-operation.
 - Backend validerer ændringen og gemmer den i databasen. Adgang til status-API'et begrænses ved offentlig deployment på Nginx-/netværksniveau; der implementeres ikke personalelogin.
 - UI opdateres først, når serveren har bekræftet ændringen; ved fejl vises fejlbesked.
 - Samtidige opdateringer fra flere medarbejdere må ikke lydløst overskrive nyere ændringer.
 
-**Uafklaret:** Regler ved tilbageførsel fra "Klar" til "Ikke klar", især når en e-mail allerede er accepteret af mailtjenesten.
+**Valgt:** Tilbageførsel fra "Klar" til "Ikke klar" er tilladt også med en e-mailtilmelding. En pending-besked med nul forsøg sættes tilbage til waiting_for_ready i samme transaktion. Accepted/failed, antal forsøg og tidsstempler bevares; en ny Klar-status giver ikke et nyt afsendelsesforsøg, hvis et forsøg allerede er brugt. Tilbageførsel afvises kun, hvis beskeden står som processing; efter et usikkert udfald kræves manuel undersøgelse. En allerede accepteret mail kan ikke tilbagekaldes. Statusændringer begrænses til dagens ophold. En ændring kræver bookingens aktuelle heltalsversion; ved konflikt kræves et nyt opslag. Et identisk statuskald med aktuel version ændrer intet. En gentagelse med en forældet version afvises.
 
 ## 5. Datamodel – Azure SQL Database
 
@@ -112,7 +118,9 @@ Et enkelt felt `email_status` skal tydeligt skelne mellem eksempelvis:
 - `accepted`: Mailtjenesten har accepteret e-mailen, **ikke** nødvendigvis leveret den.
 - `failed`: Afsendelsesforsøg fejlede.
 
-`email_attempts` og tidsstempler understøtter fejlsøgning. Præcis håndtering af retries, usikre udfald og tilstanden `processing` efter genstart besluttes før afsendelsesdelen implementeres.
+`email_attempts`, `email_attempted_at` og `email_last_error` understøtter fejlsøgning. De to sidstnævnte felter tilføjes med et særskilt SQL-script, som kræver godkendelse før kørsel.
+
+**Valgt:** Højst ét afsendelsesforsøg pr. tilmelding. `pending` med nul forsøg kan behandles efter genstart. `processing` efter afbrydelse samt `failed` undersøges manuelt og genstartes ikke automatisk. Et ukendt udfald registreres med fejlkoden `OUTCOME_UNKNOWN`, hvis databasen kan opdateres; ellers forbliver rækken `processing`. Gentagen tilmelding nulstiller ikke et forsøg.
 
 ### 5.3 Transaktioner og samtidighed
 
@@ -137,11 +145,15 @@ Når en booking bliver "Klar", og der findes en relevant tilmelding, registrerer
 
 ### 6.1 Transport
 
-Mailudbyder og Nodemailer-transport er endnu ikke valgt. Transporten skal fungere både lokalt og fra DigitalOcean. De almindelige udgående SMTP-porte 25, 465 og 587 er begrænset på DigitalOcean Droplets; løsningen skal derfor anvende en kompatibel transport, eksempelvis en understøttet HTTPS-baseret mailtjeneste.
+**Valgt til lokal udvikling: Gmail via Nodemailers indbyggede SMTP-transport med Google-app-password, som i øvelse 4.** Dette erstatter valget af Resend. SMTP-forbindelsen er krypteret.
 
-API-nøgler og credentials skal ligge i miljøvariabler, ikke i kode eller Git.
+DigitalOcean blokerer de almindelige SMTP-porte 25, 465 og 587. Denne lokale Gmail-opsætning er derfor ikke deploymentløsningen. En kompatibel mailtransport til Dropletten skal vælges før deployment.
 
-**Uafklaret:** Mailudbyder, transportmetode, retries og adfærd ved tilbageførsel af status.
+Afsendelse er slået fra som standard og aktiveres med `MAIL_ENABLED=true` efter database- og kontoopsætning. I fase 4 sendes alle mails til én fast `MAIL_TEST_RECIPIENT`, som gruppen selv kontrollerer. Gmail-konto og app-password konfigureres lokalt; afsenderen er Gmail-kontoen. Produktionsmodtagere og aktivering aftales ved deployment.
+
+Mailcredentials skal ligge i miljøvariabler, ikke i kode eller Git.
+
+**Valgt:** Ét forsøg med manuel håndtering af fejl og usikre udfald. Tilbageførsel bevarer mailhistorik og er kun blokeret under processing.
 
 ## 7. Teknisk arkitektur og arbejdsform
 
@@ -204,7 +216,7 @@ Endpoint-navne, HTTP-metoder, JSON-felter og statuskoder fastlægges under imple
 - Den offentlige app bruger HTTPS; adgangskontrol må ikke baseres på skjulte knapper eller URL'er.
 - Udvikling og produktion skal have adskilte databaser.
 
-**Uafklaret:** Databaseautentifikation. Gæstens bookingopslag og fravalg af personalelogin er besluttet.
+**Valgt:** Databaseautentifikation med SQL-bruger og adgangskode i lokale miljøvariabler. Appen skal bruge en konto med kun nødvendige rettigheder. Gæstens bookingopslag og fravalg af personalelogin er besluttet.
 
 ## 10. Fejlhåndtering og tests
 
@@ -256,13 +268,13 @@ Alle kriterier skal kontrolleres ved faktiske tests, før de markeres som opfyld
 | Udvikling | **Valgt: Lokalt + GitHub + fælles Azure SQL-udviklingsdatabase** |
 | Deployment | **Valgt: Eksisterende DigitalOcean Droplet** |
 | Miljøadskillelse | **Valgt: Separat database til produktion** |
-| Databasebibliotek | Forventet: `mssql` |
+| Databasebibliotek | **Valgt: `mssql`** |
 | Azure SQL-produktionsdatabase og pris | Skal verificeres/oprettes |
-| Mailudbyder og transportmetode | Ikke valgt |
+| Mailudbyder og transportmetode | **Lokalt: Gmail SMTP med Nodemailer og app-password. Deploymenttransport skal vælges.** |
 | Gæstens adgangsmetode | **Valgt: Bookingreference + e-mail (uden gæstelogin)** |
 | Personalelogin | **Fravalgt i første version; netværksbaseret adgangsbegrænsning ved offentlig deployment** |
-| Databaseautentifikation | Ikke valgt |
-| Tilbageførsel af "Klar" og evt. ny mail | Ikke valgt |
-| Regler for genforsøg og uklare mailudfald | Ikke valgt |
+| Databaseautentifikation | **Valgt: SQL-bruger/adgangskode via miljøvariabler** |
+| Tilbageførsel af "Klar" | **Valgt: Tilladt med bevaret mailhistorik; blokeret under processing** |
+| Regler for genforsøg og uklare mailudfald | **Valgt: Ét forsøg; manuel undersøgelse, intet automatisk genforsøg** |
 
 Dette er en levende kravspecifikation. Ikke-vedtagne forslag må ikke behandles som endelige implementeringskrav.

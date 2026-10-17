@@ -1,0 +1,138 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #203638;
+  background: #f1f5f4;
+  line-height: 1.6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 3rem 1rem;
+}
+
+.card {
+  max-width: 36rem;
+  margin: 0 auto;
+  padding: clamp(1.25rem, 5vw, 2.5rem);
+  background: #fff;
+  border: 1px solid #d5e0dd;
+  border-radius: 1rem;
+}
+
+.eyebrow {
+  color: #426361;
+  font-size: 0.875rem;
+}
+
+h1 {
+  line-height: 1.2;
+}
+
+.notice {
+  padding: 1rem;
+  background: #fff5dc;
+  border-left: 4px solid #8b6200;
+}
+
+form:not([hidden]) {
+  display: grid;
+  gap: 0.5rem;
+}
+
+input,
+button {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.8rem;
+  font: inherit;
+  border-radius: 0.4rem;
+}
+
+input {
+  margin-bottom: 0.75rem;
+  border: 1px solid #718782;
+}
+
+button {
+  border: 0;
+  color: #fff;
+  background: #245a50;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #1a463e;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+:focus-visible {
+  outline: 3px solid #9a6700;
+  outline-offset: 3px;
+}
+
+.status-ready,
+.status-waiting {
+  padding: 1rem;
+  border-left: 4px solid;
+}
+
+.staff-card {
+  max-width: 65rem;
+}
+
+.table-container {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+caption {
+  text-align: left;
+  font-weight: bold;
+  padding: 1rem 0;
+}
+
+th,
+td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #d5e0dd;
+}
+
+td button {
+  min-width: 7rem;
+}
+
+.status-ready {
+  color: #245a50;
+  background: #edf7ef;
+}
+
+.status-waiting {
+  color: #a12626;
+  background: #fff0f0;
+}
+
+.status-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.button-not-ready {
+  background: #b42323;
+}
+
+.button-not-ready:hover {
+  background: #8e1b1b;
+}
